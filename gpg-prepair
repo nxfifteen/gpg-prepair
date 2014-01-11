@@ -1,0 +1,45 @@
+#!/bin/bash
+KEYS="$1";
+
+GPG="gpg";
+GPGHOME="--homedir $HOME/.gnupg";
+
+NXHOME="$HOME/NxKeys"
+
+GenRevoke() {
+   KEYID=$1
+   CODE=$2
+   REASON=$3
+
+   INPUTFILE="$NXHOME/.tmp"
+   if [ -f "$INPUTFILE" ] ; then rm -f "$INPUTFILE"; fi
+   touch "$INPUTFILE"
+   #  0 - No reason specified
+   echo "y" > "$INPUTFILE";echo "$CODE" >> "$INPUTFILE" ;echo "$REASON" >> "$INPUTFILE";echo "" >> "$INPUTFILE";echo "y" >> "$INPUTFILE";echo >> "$INPUTFILE";
+   $GPG $GPGHOME --command-fd 0 --status-fd 2 -a -o "./$CODE - $REASON.asc" --gen-revoke $KEYID < "$INPUTFILE"
+   rm -f "$INPUTFILE"
+}
+
+BackUpKey() {
+   KEYID=$1
+   echo "Key ID: $KEYID";
+   if [ -d "$NXHOME/$KEYID" ] ; then rm -fr "$NXHOME/$KEYID"; fi
+
+   mkdir "$NXHOME/$KEYID"; cd "$NXHOME/$KEYID";
+   $GPG $GPGHOME --output $KEYID.pub.asc --export $KEYID;
+   $GPG $GPGHOME --output $KEYID.sec.asc --export-secret-keys $KEYID;
+
+   mkdir "$NXHOME/$KEYID/Revoke $KEYID";
+   cd "$NXHOME/$KEYID/Revoke $KEYID";
+   GenRevoke $KEYID 0 "No reason specified";
+   GenRevoke $KEYID 1 "Key has been compromised";
+   GenRevoke $KEYID 2 "Key is superseded";
+   GenRevoke $KEYID 3 "Key is no longer used";
+}
+
+if [ ! -d "$NXHOME" ] ; then mkdir "$NXHOME"; fi
+
+for KEY in $KEYS
+do
+   BackUpKey $KEY
+done
