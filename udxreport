@@ -1,0 +1,196 @@
+#!/usr/bin/python
+import sys, urllib, urllib2, re, time
+import os, os.path, hashlib, datetime
+import MySQLdb as mdb
+from hurry.filesize import size
+
+updateHome = "/var/updatecache"
+updateUrl = "http://blockouttraffic.de/version/UpdateAccelerator.latest" 
+updateCacheDirectory = "/var/spool/updatecache"
+totalFiles = 0
+totalFileSize = 0
+totalSSUnknown = 0
+totalSSOkay = 0
+totalSSOutdated = 0
+totalSSNoSource = 0
+cacheHits = 0
+cachedTraffic = 0
+cacheMissingSource = []
+cacheUnknownSource = []
+cacheOutdatedSource = []
+
+venders = []
+
+def getCachedUpdates(vendername):
+   global totalFiles, totalFileSize, cacheHits, cachedTraffic, totalSSUnknown, totalSSOkay, totalSSOutdated, totalSSNoSource, databaseConnection, st
+   print "Building Cache statistics for " + vendername
+   
+   venderHash = ""
+   venderCache = ""
+   
+   venderId = []
+   cacheStats = []
+   
+   totalVenderFiles = 0
+   totalVenderFileSize = 0
+   totalVenderCachedTraffic = 0
+   totalVenderSSUnknown = 0
+   totalVenderSSOkay = 0
+   totalVenderSSOutdated = 0
+   totalVenderSSNoSource = 0
+   
+   venderId.append(vendername)
+   
+   databaseCursor = databaseConnection.cursor()   
+   databaseCursor.execute("INSERT INTO venders (`uid`, `name`, `firstseen`, `lastseen`) VALUES (NULL, '" + vendername + "', '" + st + "' , '" + st + "') ON DUPLICATE KEY UPDATE lastseen = '" + st + "';")
+   databaseConnection.commit()
+   
+   databaseCursor = databaseConnection.cursor()   
+   databaseCursor.execute("SELECT uid FROM venders WHERE name = '" + vendername + "';")
+   sqlVenderId = databaseCursor.fetchone()
+   sqlVenderId = sqlVenderId[0]
+   
+   for cached in os.listdir(updateCacheDirectory + "/" + vendername):
+      if os.path.isdir(updateCacheDirectory + "/" + vendername + "/" + cached):
+         # Read source URL for filename
+         f = open(updateCacheDirectory + "/" + vendername + "/" + cached + "/source.url")
+         sourceURL = f.readlines()
+         f.close()         
+         filename = os.path.basename(sourceURL[0]).rstrip('\n')
+         sourceURL = None
+                
+         # Read access logs for filename
+         f = open(updateCacheDirectory + "/" + vendername + "/" + cached + "/status")
+         sourceState = f.readlines()
+         f.close()
+         if int(sourceState[0].rstrip('\n')) == 0:
+            totalSSUnknown = totalSSUnknown + 1
+            totalVenderSSUnknown = totalVenderSSUnknown + 1
+            cacheUnknownSource.append(vendername + "/" + cached)
+         elif int(sourceState[0].rstrip('\n')) == 1:
+            totalSSOkay = totalSSOkay + 1
+            totalVenderSSOkay = totalVenderSSOkay + 1
+         elif int(sourceState[0].rstrip('\n')) == 2:
+            totalSSOutdated = totalSSOutdated + 1
+            totalVenderSSOutdated = totalVenderSSOutdated + 1
+            cacheOutdatedSource.append(vendername + "/" + cached)
+         elif int(sourceState[0].rstrip('\n')) == 3:
+            totalSSNoSource = totalSSNoSource + 1
+            totalVenderSSNoSource = totalVenderSSNoSource + 1
+            cacheMissingSource.append(vendername + "/" + cached)
+            
+         sourceURL = None
+                
+         # Read access logs for filename
+         f = open(updateCacheDirectory + "/" + vendername + "/" + cached + "/access.log")
+         accessCount = f.readlines()
+         f.close()
+         accessCount = len(accessCount)
+         cacheHits = cacheHits + accessCount
+         
+         # File size for this source
+         filesize = os.path.getsize(updateCacheDirectory + "/" + vendername + "/" + cached + "/" + filename)
+         
+         # Total cached file size
+         totalFileSize = totalFileSize + filesize
+         cachedTraffic = cachedTraffic + (filesize * accessCount)
+         
+         # Total cached file size of vender
+         totalVenderFileSize = totalVenderFileSize + filesize
+         totalVenderCachedTraffic = totalVenderCachedTraffic + (filesize * accessCount)
+         # Total number of cached files
+         totalFiles = totalFiles + 1
+
+         # Total number of cached files of vender
+         totalVenderFiles = totalVenderFiles + 1
+         
+         venderHash = venderHash + cached
+
+   databaseCursor = databaseConnection.cursor()   
+   databaseCursor.execute("INSERT INTO `venderCache` (`vuid`, `timestamp`, `files`, `filesize`, `cachedtraffic`, `srcokay`, `srcoutdated`, `srcnosource`, `srcunknown`) VALUES ('" + str(sqlVenderId) + "', '" + st + "', '" + str(totalVenderFiles) + "', '" + str(totalVenderFileSize) + "', '" + str(totalVenderCachedTraffic) + "', '" + str(totalVenderSSOkay) + "', '" + str(totalVenderSSOutdated) + "', '" + str(totalVenderSSNoSource) + "', '" + str(totalVenderSSUnknown) + "');")
+   databaseConnection.commit()
+
+   cacheStats.append(totalVenderFiles)
+   cacheStats.append(size(totalVenderFileSize))
+   cacheStats.append(size(totalVenderCachedTraffic))
+   cacheStats.append(totalVenderSSUnknown)
+   cacheStats.append(totalVenderSSOkay)
+   cacheStats.append(totalVenderSSOutdated)
+   cacheStats.append(totalVenderSSNoSource)
+   
+   venderId.append(cacheStats)
+   return venderId
+
+def checkForUpdates():
+   f = open(updateHome + "/version")
+   lines = f.readlines()
+   f.close()
+   currentVersion = os.path.basename(lines[0]).rstrip('\n')
+   
+   f = urllib2.urlopen(updateUrl)
+   s = f.read()
+   matchObj = re.match( r'MOD_VERSION', s, re.M|re.I)
+   
+   if matchObj:
+      latestVersion = matchObj.group()
+      print "Current Version: " + currentVersion
+      print "New Version: " + latestVersion
+
+# checkForUpdates()
+
+
+# ----------------------------------------------------
+#    Show statistics
+# ----------------------------------------------------
+st = datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S')
+
+try:
+   databaseConnection = mdb.connect('localhost', 'nxn', 'A6AXNj3S9WPh8GJ5', 'nxn_udxreport');
+
+   for venderid in os.listdir(updateCacheDirectory):
+      if venderid != "download" and os.path.isdir(updateCacheDirectory + "/" + venderid):
+         venders.append(getCachedUpdates(venderid))
+
+   databaseCursor = databaseConnection.cursor()   
+   databaseCursor.execute("INSERT INTO updatexlrator (`date`, `venders`, `files`, `hits`, `cachesize`, `bandwidth`) VALUES ('" + st + "', '" + str(len(venders)) + "', '" + str(totalFiles) + "', '" + str(cacheHits) + "', '" + str(totalFileSize) + "', '" + str(cachedTraffic) + "');")
+   databaseConnection.commit()
+
+   deliveryRatioMath = cacheHits / totalFiles
+   deliveryRatio = str(deliveryRatioMath) + " times what's been downloaded"
+
+   print "\nUpdate Cache Stats:"
+   print " Caching updates from " + str(len(venders)) + " venders"
+   print " Hosting " + str(totalFiles) + " updates, totaling " + size(totalFileSize)
+   print " Delivered a total of " + str(cacheHits) + " files, " + deliveryRatio
+   print " Meaning a total of " + size(cachedTraffic) + " of bandwidth has been saved"
+   print "Cache Health:"
+   print " " + str(totalSSOkay) + " healthy links."
+
+   print " " + str(totalSSOutdated) + " links are outdated."
+   if len(cacheOutdatedSource) > 0 and len(cacheOutdatedSource) < 5:
+      print cacheOutdatedSource
+      
+   print " " + str(totalSSNoSource) + " have no sources."
+   if len(cacheMissingSource) > 0 and len(cacheMissingSource) < 5:
+      print cacheMissingSource
+      
+   print " " + str(totalSSUnknown) + " are unknown."
+   if len(cacheUnknownSource) > 0 and len(cacheUnknownSource) < 5:
+      print cacheUnknownSource
+
+   print "\nStatistics by source:"
+   for vender in venders:
+      venderName = vender[0].capitalize()
+      venderStats = vender[1]
+      print " " + venderName + " - " + str(venderStats[0]) + " files, " + venderStats[1] + " cached, " + venderStats[2] + " deliverd"
+      print "  " + str(venderStats[4]) + " healthy links.\t" + str(venderStats[5]) + " links are outdated.\t" + str(venderStats[6]) + " have no sources.\t" + str(venderStats[3]) + " are unknown."
+    
+except mdb.Error, e:
+   print "Error %d: %s" % (e.args[0],e.args[1])
+   sys.exit(1)
+    
+finally:    
+   if databaseConnection:    
+      databaseConnection.close()
+
+
