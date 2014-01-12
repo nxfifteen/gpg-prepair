@@ -1,4 +1,7 @@
-Copyright (c) [Stuart McCulloch Anderson](http://nx15.at/whoami) of [NxFifteen Research Group](http://nxfifteen.me.uk)
+FreeBSD
+
+Copyright (c) 2014 [Stuart McCulloch Anderson](http://nx15.at/whoami) of [NxFifteen Research Group](http://nxfifteen.me.uk)
+This license is available online at [http://stuart.nx15.at/a414ce0/2014/license.html](http://stuart.nx15.at/a414ce0/2014/license.html)
 
 Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
 
@@ -15,7 +18,10 @@ Redistribution and use in source and binary forms, with or without modification,
     OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
     SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-The views and conclusions contained in the software and documentation are those of the authors and should not be interpreted as representing official policies, either expressed or implied, of The NxFifteen Research Group , The Software Society or any of the original authors other employers - past or present.
+The views and conclusions contained in the software and documentation are those of the
+authors and should not be interpreted as representing official policies, either expressed
+or implied, of The NxFifteen Research Group , The Software Society  or any of the original
+authors other employers - past or present.
 
 OpenPGP Key ID: [A7EEB609](http://nx15.at/pgp) - FingerPrint: 299B6F75C137950F031F5DFAD4065F5EA7EEB609
 
