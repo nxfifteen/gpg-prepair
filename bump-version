@@ -6,7 +6,6 @@
 # THIS FILE IS LICENCED UNDER A FREEBSD LICENCE. THE FULL TEXT OF WHICH CAN BE FOUND IN
 # THE LICENCE.md FILE INCLUDED WITH THIS FILE OF ONLINE AT HTTP://STUART.NX15.AT
 #
-GITCHANGED="0"
 
 function changes_in_git_repo () {
   latestlocal=`git rev-parse HEAD`;
@@ -28,11 +27,11 @@ function mergeTrunk() {
       exit 2
     fi
   fi
-  git checkout master;
-  git fetch origin;
-  git merge origin/develop -m "Merge developments back into origin";
-  git push origin master;
-  git checkout develop;
+  $GIT_PATH checkout master;
+  $GIT_PATH fetch origin;
+  $GIT_PATH merge origin/develop -m "Merge developments back into origin";
+  $GIT_PATH push origin master;
+  $GIT_PATH checkout develop;
 }
 
 
@@ -82,48 +81,44 @@ function bumpVersion() {
       exit 2
     fi
   fi
-
-  if ! sed 's/^version = .*$/version = '$ProposedVersion'/g' $versionFileName > .tmp.new; then
+  
+  if ! sed 's/^version = .*$/version = '$ProposedVersion'/g' README.md > .tmp.new; then
     echo "Could not replace version variable." >&2
     exit 2
   fi
-  mv .tmp.new $versionFileName
-  git add $versionFileName
-
-  if [ -f "README.md" ]; then
-    if ! sed 's/^version = .*$/version = '$ProposedVersion'/g' README.md > .tmp.new; then
-      echo "Could not replace version variable." >&2
-      exit 2
-    fi
-    mv .tmp.new README.md
-    git add README.md
+  mv .tmp.new README.md
+  $GIT_PATH add README.md
+  
+  if [ -f `which gitlog-to-changelog` ]; then
+    gitlog-to-changelog > CHANGELOG.md
+    $GIT_PATH add CHANGELOG.md
   fi
 
   if [ "$GITCHANGED" == "1" ]; then
-    git commit --amend --no-edit
+    $GIT_PATH commit --amend --no-edit
   else
-    git commit -m "Bumped $CurrentVersion to $ProposedVersion"
+    $GIT_PATH commit -m "Bumped $CurrentVersion to $ProposedVersion"
   fi  
-  git push
+  $GIT_PATH push
 
-  if git show-ref --tags --quiet --verify -- "refs/tags/v$ProposedVersion"; then
+  if $GIT_PATH show-ref --tags --quiet --verify -- "refs/tags/v$ProposedVersion"; then
     echo "######################### Tag $ProposedVersion already created"
   else
     if [ "$tag" = "production" ]; then
         echo "######################### Tagging new Production Version"
-        git tag -a v$ProposedVersion -m "Production Version $ProposedVersion"
-        git push origin v$ProposedVersion;
+        $GIT_PATH tag -a v$ProposedVersion -m "Production Version $ProposedVersion"
+        $GIT_PATH push origin v$ProposedVersion;
     elif [ "$tag" = "release" ]; then
         echo "######################### Tagging new Release Version"
-        git tag -a v$ProposedVersion -m "Release Version $ProposedVersion"
-        git push origin v$ProposedVersion;
+        $GIT_PATH tag -a v$ProposedVersion -m "Release Version $ProposedVersion"
+        $GIT_PATH push origin v$ProposedVersion;
     elif [ "$tag" = "hotfix" ]; then
         echo "######################### Not Tagging Hot Fixs"
         #git tag -a v$ProposedVersion -m "Hotfix $ProposedVersion"
     else
         echo "######################### Tagging new Build Version"
-        git tag -a v$ProposedVersion -m "Build Version $ProposedVersion"
-        git push origin v$ProposedVersion;
+        $GIT_PATH tag -a v$ProposedVersion -m "Build Version $ProposedVersion"
+        $GIT_PATH push origin v$ProposedVersion;
     fi
   fi
 
@@ -148,6 +143,8 @@ OPTIONS:
 EOF
 }
 
+GITCHANGED="0"
+GIT_PATH=`which git`
 SUBMOD=
 TAG=
 AUTO=
@@ -187,11 +184,11 @@ if [ -f `which bump-version` ]; then
   if [ -f "bump-version.sh" ]; then
     rm "bump-version.sh";
     cp "$sysBump" ./;
-    git add bump-version
+    $GIT_PATH add bump-version
     if [ "$GITCHANGED" == "1" ]; then
-      git commit --amend --no-edit
+      $GIT_PATH commit --amend --no-edit
     else
-      git commit -m "Updated bump-version script"
+      $GIT_PATH commit -m "Updated bump-version script"
     fi
   else
     sysMd5=`md5sum $sysBump | awk '{ print $1 }'`
@@ -201,9 +198,9 @@ if [ -f `which bump-version` ]; then
     if [ ! "$locMd5" == "$sysMd5" ]; then
       cp "$sysBump" ./;
       if [ "$GITCHANGED" == "1" ]; then
-        git commit --amend --no-edit
+        $GIT_PATH commit --amend --no-edit
       else
-        git commit -m "Updated version bump file"
+        $GIT_PATH commit -m "Updated version bump file"
       fi
       echo "##############################################################################"
       echo "Version Bump command updated updated from source, please re-run it"
@@ -217,17 +214,13 @@ GITCHANGED=$?
 if [ "$FORCE" == "1" ] || [ "$GITCHANGED" == "1" ]; then
   echo ""
   echo "######################### Updating Version Numbering"
-  if [ `ls *.info` ]; then
-    bumpVersion `ls *.info` $TAG $AUTO updatevc
-  else
-    if [ -f "README.md" ]; then
-      bumpVersion README.md $TAG $AUTO
-    fi
+  if [ -f "README.md" ]; then
+    bumpVersion README.md $TAG $AUTO
   fi
 
   echo ""
   echo "######################### Pushing Changed"
-  git push;
+  $GIT_PATH push;
 
   if [ $MERGE ]; then
     echo ""
@@ -254,7 +247,7 @@ if [ "$FORCE" == "1" ] || [ "$GITCHANGED" == "1" ]; then
     deployDir=$(awk -F "= " '/deploy_dir/ {print $2}' .gitlab_test.ini)
     if [ "$deployServer" != "" ] && [ "$deployUser" != "" ] && [ "$deployDir" != "" ]; then
       echo "######################### Deploying Changes"
-      ssh $deployUser@$deployServer "cd $deployDir; git pull"
+      ssh $deployUser@$deployServer "cd $deployDir; $GIT_PATH pull"
     else
       echo "######################### No Deploy Server Defined"
     fi
